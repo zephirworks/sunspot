@@ -234,8 +234,9 @@ module Sunspot #:nodoc:
             while(offset < record_count)
               solr_benchmark options[:batch_size], counter do
                 records = all(:include => options[:include], :conditions => ["#{table_name}.#{primary_key} > ?", last_id], :limit => options[:batch_size], :order => "#{table_name}.#{primary_key}")
-                Sunspot.index(records)
                 last_id = records.last.id
+                records = records.select{ |r| r.indexable? }
+                Sunspot.index(records)
               end
               Sunspot.commit if options[:batch_commit]
               offset += options[:batch_size]
@@ -346,14 +347,14 @@ module Sunspot #:nodoc:
         # manually.
         #
         def solr_index
-          Sunspot.index(self)
+          Sunspot.index(self) if indexable?
         end
 
         # 
         # Index the model in Solr and immediately commit. See #index
         #
         def solr_index!
-          Sunspot.index!(self)
+          Sunspot.index!(self) if indexable?
         end
         
         # 
@@ -364,7 +365,7 @@ module Sunspot #:nodoc:
         # manually.
         #
         def solr_remove_from_index
-          Sunspot.remove(self)
+          Sunspot.remove(self) if indexable?
         end
 
         # 
@@ -372,7 +373,7 @@ module Sunspot #:nodoc:
         # #remove_from_index
         #
         def solr_remove_from_index!
-          Sunspot.remove!(self)
+          Sunspot.remove!(self) if indexable?
         end
 
         def solr_more_like_this(*args, &block)
@@ -386,6 +387,11 @@ module Sunspot #:nodoc:
           self.class.solr_execute_search_ids do
             solr_more_like_this(&block)
           end
+        end
+
+        def indexable?
+          return true unless sunspot_options.has_key?(:if)
+          send(sunspot_options[:if])
         end
 
         private
